@@ -65,6 +65,42 @@ services:
     env_file:
       - .env
 
+  # Celery Beat (Periodic task scheduler — dispatches tasks on the CELERY_BEAT_SCHEDULE)
+  # Without this service, no scheduled scraping or log-cleanup tasks fire.
+  # Beat writes its last-run state to a local schedule file; the volume mount
+  # ensures the file survives container restarts so Beat doesn't re-run tasks
+  # that already ran since the last restart.
+  celery-beat:
+    build: .
+    container_name: celery-Beat
+    command: celery -A Coinlytics beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+      - celery
+    env_file:
+      - .env
+
+  # Flower (Real-time Celery task monitoring dashboard — http://localhost:5555)
+  # Provides visibility into task queues, worker status, and task history.
+  # Basic auth credentials are set via environment so the dashboard is not
+  # exposed publicly without a password.
+  flower:
+    build: .
+    container_name: celery-Flower
+    command: celery -A Coinlytics flower --port=5555
+    ports:
+      - "5555:5555"
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - celery
+    env_file:
+      - .env
+
 volumes:
   postgres_data:
   redis_data:

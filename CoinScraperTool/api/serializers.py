@@ -54,7 +54,12 @@ class ErrorLogSerializer(serializers.ModelSerializer):
 class ExchangeRateSnapshotSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExchangeRateSnapshot
-        field = ['id', 'base_currency', 'target_currency', 'rate', 'timestamp']
+        # BUG FIX: 'field' (singular) is not a recognised Meta attribute in
+        # ModelSerializer. DRF silently ignores it and falls back to including
+        # ALL model fields, which can unintentionally expose internal columns
+        # added in future migrations. The correct attribute is 'fields'
+        # (plural). With 'field', the explicit allow-list was dead code.
+        fields = ['id', 'base_currency', 'target_currency', 'rate', 'timestamp']
 
 
 class CoinComparisonSerializer(serializers.ModelSerializer):

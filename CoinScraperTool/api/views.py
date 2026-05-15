@@ -137,10 +137,22 @@ class UserPreferenceViewSet(ModelViewSet):
         try:
             preference = UserPreference.objects.get(user=request.user)
             serializer = self.get_serializer(preference)
-            return Response(serializer)
+            # BUG FIX 1: Response(serializer) was passing the Serializer object
+            # itself, not its validated output. DRF's Response does not know how
+            # to serialise a Serializer instance, so it returned an unrenderable
+            # object at runtime. The fix is Response(serializer.data) which
+            # returns the already-serialised OrderedDict that DRF can render as
+            # JSON.
+            #
+            # BUG FIX 2: The except clause used a set literal {'error', 'Preference
+            # not found'} instead of a dict {'error': 'Preference not found'}.
+            # A set is unordered and loses the key-value relationship, so the
+            # response body would be meaningless to API consumers. Replaced with
+            # a proper dict using the colon (:) operator.
+            return Response(serializer.data)
         except UserPreference.DoesNotExist:
             return Response(
-                {'error', 'Preference not found'},
+                {'error': 'Preference not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -193,7 +205,13 @@ class ScheduledScrapeViewSet(ModelViewSet):
     ordering = ['-last_run']
 
     def get_queryset(self):
-        return ScheduledScrape.objects.get(user=self.request.user)
+        # BUG FIX: .get() raises MultipleObjectsReturned when a user has more
+        # than one ScheduledScrape row, and raises DoesNotExist when they have
+        # none — both crash the view. ModelViewSet's list/retrieve/update
+        # actions all call get_queryset() and expect a QuerySet, not a single
+        # instance. Replaced with .filter() which returns a QuerySet in all
+        # cases and is safe for users with 0, 1, or N rows.
+        return ScheduledScrape.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
         return serializer.save(user=self.request.user)

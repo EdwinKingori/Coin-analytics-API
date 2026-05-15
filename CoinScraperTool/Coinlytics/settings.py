@@ -46,13 +46,25 @@ INSTALLED_APPS = [
     'djoser',
     'django_filters',
     'debug_toolbar',
-    'django_extensions'
+    'django_extensions',
+    # django-celery-beat: stores the periodic task schedule in the database so
+    # tasks can be managed via the Django admin panel without restarting Beat.
+    'django_celery_beat',
+    # django-cors-headers: required for the React frontend (and Postman in
+    # non-browser contexts) to make cross-origin requests to the DRF API.
+    # Without this, browsers block all API responses from a different origin.
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
     "debug_toolbar.middleware.DebugToolbarMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    # CorsMiddleware must come before CommonMiddleware so that CORS response
+    # headers are added before Django short-circuits the request on OPTIONS
+    # preflight checks. Placing it after CommonMiddleware causes preflight
+    # requests to return 200 without CORS headers, breaking browser clients.
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -185,3 +197,35 @@ DJOSER = {
         'current_user': 'users.serializers.UserSerializer'
     }
 }
+
+# ✅ CORS Configuration
+# CORS_ALLOWED_ORIGINS lists the exact front-end origins that may call this API
+# from a browser. In development the React dev server typically runs on 3000;
+# in production replace these with the actual deployed frontend URL.
+# Never use CORS_ALLOW_ALL_ORIGINS=True in production — it bypasses the
+# same-origin policy for every client, including malicious ones.
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",   # React dev server
+    "http://127.0.0.1:3000",
+]
+
+# Allow the JWT Authorization header to be sent cross-origin. Without this,
+# browsers strip the Authorization header on cross-origin requests and every
+# authenticated API call returns 401.
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
+
+# ✅ Celery Beat — DatabaseScheduler
+# Tells Beat to read its schedule from the django_celery_beat tables rather
+# than a static file. This means new periodic tasks can be added through the
+# Django admin without restarting the Beat container.
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'

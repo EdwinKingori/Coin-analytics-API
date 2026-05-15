@@ -26,6 +26,13 @@ def send_welcome_email(user_email, username):
 
 
 # ✅ sending reset passwords emails asynchronously
+# BUG FIX: Missing @shared_task decorator. Without it, calling
+# send_password_reset_email.delay(...) raises AttributeError because plain
+# Python functions have no .delay() or .apply_async() methods — those are
+# added by Celery when the decorator registers the function as a task.
+# The function was therefore always running synchronously (blocking the
+# Django request/response cycle) or crashing outright when .delay() was used.
+@shared_task
 def send_password_reset_email(user_email, reset_link, username):
     subject = "Password Reset Request 🔑"
     from_email = settings.EMAIL_HOST_USER
